@@ -162,19 +162,3 @@ class SiameseClassifier(nn.Module):
 
         self.get_loss()
 
-"""
-# Test area
-from similarity_estimator.options import SimSysOptions
-import numpy as np
-
-opt = SimSysOptions()
-sc1 = SiameseClassifier(100, opt)
-
-# Fake data
-sent1 = Variable(torch.LongTensor(np.random.randint(0, 100, size=[32, 20])))
-sent2 = Variable(torch.LongTensor(np.random.randint(0, 100, size=[32, 20])))
-scaled_labels = Variable(torch.FloatTensor(np.random.uniform(0.0, 1.0, size=[32, 1])))
-
-sc1.optimize_parameters(sent1, sent2, scaled_labels)
-print(sc1.loss)
-"""
