@@ -77,12 +77,10 @@ class SiameseClassifier(nn.Module):
         input_length = self.batch_a.size()[1]
 
         # Obtain sentence encodings from each encoder
-        initial_state_dict = self.encoder_a.state_dict()
         hidden_a, cell_a = self.encoder_a.initialize_hidden_plus_cell()
         for t_i in range(input_length):
             output_a, hidden_a, cell_a = self.encoder_a(self.batch_a[:, t_i], hidden_a, cell_a)
 
-        self.encoder_b.load_state_dict(initial_state_dict)  # Ties the network parameters
         hidden_b, cell_b = self.encoder_b.initialize_hidden_plus_cell()
         for t_j in range(input_length):
             output_b, hidden_b, cell_b = self.encoder_b(self.batch_b[:, t_j], hidden_b, cell_b)
@@ -113,7 +111,6 @@ class SiameseClassifier(nn.Module):
         state_dict = self.encoder_a.state_dict()
         for key in state_dict.keys():
             if '.weight' in key:
-                # state_dict[key] = torch.randn(state_dict[key].size())
                 state_dict[key] = xavier_normal(state_dict[key])
             if '.bias' in key:
                 bias_length = state_dict[key].size()[0]
@@ -132,10 +129,6 @@ class SiameseClassifier(nn.Module):
         self.encoder_a.zero_grad()  # encoder_a == encoder_b
         self.get_loss()
         self.loss.backward()
-
-        # View gradients for debugging
-        # for p in self.encoder_a.parameters():
-        #    print(p.grad.data)
 
         # Clip gradients
         clip_grad_norm(self.encoder_a.parameters(), self.opt.clip_value)
