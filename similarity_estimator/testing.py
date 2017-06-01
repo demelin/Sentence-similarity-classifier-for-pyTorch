@@ -4,7 +4,7 @@ import os
 import pickle
 
 import torch
-from utils.data_iterator import DataIterator
+from utils.data_iterator import DataServer
 from torch.autograd import Variable
 
 from similarity_estimator.networks import SiameseClassifier
@@ -28,8 +28,8 @@ classifier = SiameseClassifier(vocab.n_words, opt, is_train=False)
 load_network(classifier.encoder_a, 'sim_classifier', 'latest', opt.save_dir)
 
 # Initialize a data loader from randomly shuffled corpus data; inspection limited to individual items, hence bs=1
-shuffled_loader = DataIterator(corpus_data, vocab, opt.max_sent_len, opt.test_batch_size, shuffle=opt.shuffle,
-                               freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
+shuffled_loader = DataServer(corpus_data, vocab, opt.max_sent_len, opt.test_batch_size, shuffle=opt.shuffle,
+                             freq_bound=opt.freq_bound, pad=opt.pad, volatile=True)
 
 # Keep track of performance
 total_classification_divergence = 0.0
@@ -49,10 +49,7 @@ for i, data in enumerate(shuffled_loader):
               (opt.num_test_samples, average_classification_divergence, average_classification_loss))
         break
 
-    sent_1, sent_2, label = data
-    s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1)), Variable(torch.LongTensor(sent_2)), \
-                                Variable(torch.FloatTensor(label))
-
+    s1_var, s2_var, label_var = data
     # Get predictions and update tracking values
     classifier.test_step(s1_var, s2_var, label_var)
     prediction = classifier.prediction
@@ -61,8 +58,8 @@ for i, data in enumerate(shuffled_loader):
     total_classification_divergence += divergence
     total_classification_loss += loss
 
-    sentence_a = ' '.join([vocab.index_to_word[int(idx)] for idx in sent_1.tolist()[0]])
-    sentence_b = ' '.join([vocab.index_to_word[int(idx)] for idx in sent_2.tolist()[0]])
+    sentence_a = ' '.join([vocab.index_to_word[int(idx)] for idx in s1_var.data.numpy().tolist()[0]])
+    sentence_b = ' '.join([vocab.index_to_word[int(idx)] for idx in s2_var.data.numpy().tolist()[0]])
 
     print('Sample: %d\n'
           'Sentence A: %s\n'
@@ -71,4 +68,4 @@ for i, data in enumerate(shuffled_loader):
           'Ground truth: %.4f\n'
           'Divergence: %.4f\n'
           'Loss: %.4f\n' %
-          (i, sentence_a, sentence_b, prediction.data[0], label[0][0], divergence, loss))
+          (i, sentence_a, sentence_b, prediction.data[0], label_var.data[0][0], divergence, loss))

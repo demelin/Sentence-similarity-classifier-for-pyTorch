@@ -23,7 +23,7 @@ class TestingOptions(object):
         self.learning_rate = 0.0001
         self.beta_1 = 0.5
 
-        self.pre_training = True
+        self.pre_training = False
         self.num_epochs = 1000
 
         self.start_early_stopping = 2

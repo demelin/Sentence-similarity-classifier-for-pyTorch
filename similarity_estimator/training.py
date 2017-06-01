@@ -5,7 +5,7 @@ import pickle
 
 import numpy as np
 import torch
-from utils.data_iterator import DataIterator
+from utils.data_iterator import DataServer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVR
@@ -82,32 +82,28 @@ train_data, valid_data, train_labels, valid_labels = train_test_split(corpus_dat
 for epoch in range(opt.num_epochs):
 
     # Declare tracking variables
-    running_loss = 0.0
+    running_loss = list()
     total_train_loss = list()
 
     # Initiate the training data loader
-    train_loader = DataIterator([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                                shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
+    train_loader = DataServer([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                              shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad)
 
     # Training loop
     for i, data in enumerate(train_loader):
         # Obtain data
-        sent_1_batch, sent_2_batch, label_batch = data
-        s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1_batch)), \
-                                    Variable(torch.LongTensor(sent_2_batch)), \
-                                    Variable(torch.FloatTensor(label_batch))
-
+        s1_var, s2_var, label_var = data
         classifier.train_step(s1_var, s2_var, label_var)
         train_batch_loss = classifier.loss.data[0]
 
-        running_loss += train_batch_loss
+        running_loss.append(train_batch_loss)
         total_train_loss.append(train_batch_loss)
 
         if i % opt.report_freq == 0 and i != 0:
-            running_avg_loss = running_loss / opt.report_freq
+            running_avg_loss = sum(running_loss) / len(running_loss)
             print('Epoch: %d | Training Batch: %d | Average loss since batch %d: %.4f' %
                   (epoch, i, i - opt.report_freq, running_avg_loss))
-            running_loss = 0.0
+            running_loss = list()
 
     # Report epoch statistics
     avg_training_accuracy = sum(total_train_loss) / len(total_train_loss)
@@ -118,16 +114,12 @@ for epoch in range(opt.num_epochs):
         total_valid_loss = list()
 
         # Initiate the training data loader
-        valid_loader = DataIterator([valid_data, valid_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                                    shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
+        valid_loader = DataServer([valid_data, valid_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                                  shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad)
 
         # Validation loop (i.e. perform inference on the validation set)
         for i, data in enumerate(valid_loader):
-            sent_1_batch, sent_2_batch, label_batch = data
-            s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1_batch), volatile=True), \
-                                        Variable(torch.LongTensor(sent_2_batch), volatile=True), \
-                                        Variable(torch.FloatTensor(label_batch), volatile=True)
-
+            s1_var, s2_var, label_var = data
             # Get predictions and update tracking values
             classifier.test_step(s1_var, s2_var, label_var)
             valid_batch_loss = classifier.loss.data[0]
@@ -181,18 +173,14 @@ if not opt.pre_training:
     predictions = list()
 
     # Initiate the training data loader
-    train_loader = DataIterator([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                                shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
+    train_loader = DataServer([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                              shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, volatile=True)
 
     # Obtaining predictions
     for i, data in enumerate(train_loader):
         # Obtain data
-        sent_1_batch, sent_2_batch, label_batch = data
-        s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1_batch)), \
-                                    Variable(torch.LongTensor(sent_2_batch)), \
-                                    Variable(torch.FloatTensor(label_batch))
-
-        labels += [l[0] for l in label_batch.tolist()]
+        s1_var, s2_var, label_var = data
+        labels += [l[0] for l in label_var.data.numpy().tolist()]
         classifier.test_step(s1_var, s2_var, label_var)
         batch_predict = classifier.prediction.data.squeeze().numpy().tolist()
         predictions += batch_predict
