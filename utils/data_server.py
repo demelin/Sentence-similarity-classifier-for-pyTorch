@@ -9,34 +9,34 @@ from torch.autograd import Variable
 
 class DataServer(object):
     """ Iterates through a data source, i.e. a corpus of sentences represented as a list."""
-    def __init__(self, data, vocab, max_sent_len, batch_size, shuffle=True, freq_bound=0, pad=True, volatile=False):
+    def __init__(self, data, vocab, opt, is_train=False, volatile=False):
         self.data = data
         self.vocab = vocab
-        self.max_sent_len = max_sent_len
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.freq_bound = freq_bound
-        self.pad = pad
+        self.opt = opt
         self.volatile = volatile
+        if is_train:
+            self.batch_size = self.opt.train_batch_size
+        else:
+            self.batch_size = self.opt.test_batch_size
 
         self.pointer = 0
 
-        if self.shuffle:
+        if self.opt.shuffle:
             zipped = list(zip(*self.data))
             random.shuffle(zipped)
             self.data = list(zip(*zipped))
 
     def sent_to_idx(self, sent):
         """ Transforms a sequence of strings to the corresponding sequence of indices. """
-        idx_list = [self.vocab.word_to_index[word] if self.vocab.word_to_count[word] >= self.freq_bound else 1 for word in
-                    sent.split()]
+        idx_list = [self.vocab.word_to_index[word] if self.vocab.word_to_count[word] >= self.opt.freq_bound else 1 for
+                    word in sent.split()]
         # Pad to the desired sentence length
-        if self.pad:
+        if self.opt.pad:
             # In case padding is wished for, but no max_sent_len has been specified
-            if self.max_sent_len is None:
-                self.max_sent_len = self.vocab.observed_msl
+            if self.opt.max_sent_len is None:
+                self.opt.max_sent_len = self.vocab.observed_msl
             # Pad items to maximum length
-            diff = self.max_sent_len - len(idx_list)
+            diff = self.opt.max_sent_len - len(idx_list)
             if diff >= 1:
                 idx_list += [0] * diff
         return idx_list

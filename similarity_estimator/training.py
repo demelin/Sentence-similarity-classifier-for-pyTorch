@@ -86,8 +86,7 @@ for epoch in range(opt.num_epochs):
     total_train_loss = list()
 
     # Initiate the training data loader
-    train_loader = DataServer([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                              shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad)
+    train_loader = DataServer([train_data, train_labels], vocab, opt, is_train=True, volatile=False)
 
     # Training loop
     for i, data in enumerate(train_loader):
@@ -114,8 +113,7 @@ for epoch in range(opt.num_epochs):
         total_valid_loss = list()
 
         # Initiate the training data loader
-        valid_loader = DataServer([valid_data, valid_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                                  shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad)
+        valid_loader = DataServer([valid_data, valid_labels], vocab, opt, is_train=True, volatile=True)
 
         # Validation loop (i.e. perform inference on the validation set)
         for i, data in enumerate(valid_loader):
@@ -173,8 +171,7 @@ if not opt.pre_training:
     predictions = list()
 
     # Initiate the training data loader
-    train_loader = DataServer([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
-                              shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, volatile=True)
+    train_loader = DataServer([train_data, train_labels], vocab, opt, is_train=True, volatile=True)
 
     # Obtaining predictions
     for i, data in enumerate(train_loader):

@@ -28,8 +28,7 @@ classifier = SiameseClassifier(vocab.n_words, opt, is_train=False)
 load_network(classifier.encoder_a, 'sim_classifier', 'latest', opt.save_dir)
 
 # Initialize a data loader from randomly shuffled corpus data; inspection limited to individual items, hence bs=1
-shuffled_loader = DataServer(corpus_data, vocab, opt.max_sent_len, opt.test_batch_size, shuffle=opt.shuffle,
-                             freq_bound=opt.freq_bound, pad=opt.pad, volatile=True)
+shuffled_loader = DataServer(corpus_data, vocab, opt, is_train=False, volatile=True)
 
 # Keep track of performance
 total_classification_divergence = 0.0
