@@ -5,7 +5,7 @@ import pickle
 
 import numpy as np
 import torch
-from utils.data_iterator import DataServer
+from utils.data_server import DataServer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVR

@@ -4,7 +4,7 @@ import os
 import pickle
 
 import torch
-from utils.data_iterator import DataServer
+from utils.data_server import DataServer
 from torch.autograd import Variable
 
 from similarity_estimator.networks import SiameseClassifier
