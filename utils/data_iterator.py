@@ -12,7 +12,7 @@ def sent_to_idx(sent, vocab, max_sent_len, freq_bound, pad):
         # In case padding is wished for, but no max_sent_len has been specified
         if max_sent_len is None:
             max_sent_len = vocab.observed_msl
-
+        # Pad items to maximum length
         diff = max_sent_len - len(idx_list)
         if diff >= 1:
             idx_list += [0] * diff
@@ -21,8 +21,7 @@ def sent_to_idx(sent, vocab, max_sent_len, freq_bound, pad):
 
 class DataIterator(object):
     """ Iterates through a data source, i.e. a corpus of sentences represented as a list."""
-    def __init__(self, data, data_vocab, max_sent_len, batch_size, shuffle=True, freq_bound=0, pad=True,
-                 similarity_corpus=False):
+    def __init__(self, data, data_vocab, max_sent_len, batch_size, shuffle=True, freq_bound=0, pad=True):
         self.data = data
         self.data_vocab = data_vocab
         self.max_sent_len = max_sent_len
@@ -30,17 +29,13 @@ class DataIterator(object):
         self.shuffle = shuffle
         self.freq_bound = freq_bound
         self.pad = pad
-        self.similarity_corpus = similarity_corpus
 
         self.pointer = 0
 
         if self.shuffle:
-            if similarity_corpus:
-                zipped = list(zip(*self.data))
-                random.shuffle(zipped)
-                self.data = list(zip(*zipped))
-            else:
-                random.shuffle(self.data)
+            zipped = list(zip(*self.data))
+            random.shuffle(zipped)
+            self.data = list(zip(*zipped))
 
     def __iter__(self):
         """ Returns an iterator object. """
@@ -72,8 +67,4 @@ class DataIterator(object):
             return np.stack(s1_batch, 0), np.stack(s2_batch, 0), np.stack(label_batch, 0)
 
     def get_length(self):
-        if self.similarity_corpus:
-            return len(self.data[0])
-        else:
-            return len(self.data)
-
+        return len(self.data[0])
