@@ -4,13 +4,14 @@ adjusted as needed. """
 
 class Indexer(object):
     """ Translates words to their respective indices and vice versa. """
+
     def __init__(self, name):
         self.name = name
         self.word_to_index = dict()
         self.word_to_count = dict()
         # Specify start-and-end-of-sentence tokens
-        self.index_to_word = {0: '<SOS>', 1: '<EOS>', 2: '<PAD>', 3: '<UNK>'}
-        self.n_words = 4
+        self.index_to_word = {0: '<PAD>', 1: '<UNK>'}
+        self.n_words = 2
 
         self.observed_msl = None
 

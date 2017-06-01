@@ -1,9 +1,10 @@
 """ Tests the performance of the trained model by checking its predictive accuracy on n randomly sampled items. """
 
 import os
+import pickle
 
 import torch
-from utils.data_loader import DataIterator
+from utils.data_iterator import DataIterator
 from torch.autograd import Variable
 
 from similarity_estimator.networks import SiameseClassifier
@@ -12,10 +13,14 @@ from similarity_estimator.sim_util import load_similarity_data
 from utils.init_and_storage import load_network
 
 # Initialize training parameters
-opt = ClusterOptions()
+opt = TestingOptions()
 # Obtain data
 extended_corpus_path = os.path.join(opt.data_dir, 'extended_sick.txt')
-vocab, corpus_data = load_similarity_data(opt, extended_corpus_path, 'sick_corpus')
+_, corpus_data = load_similarity_data(opt, extended_corpus_path, 'sick_corpus')
+# Load extended vocab
+vocab_path = os.path.join(opt.save_dir, 'extended_vocab.pkl')
+with open(vocab_path, 'rb') as f:
+    vocab = pickle.load(f)
 
 # Initialize the similarity classifier
 classifier = SiameseClassifier(vocab.n_words, opt, is_train=False)
@@ -23,12 +28,12 @@ classifier = SiameseClassifier(vocab.n_words, opt, is_train=False)
 load_network(classifier.encoder_a, 'sim_classifier', 'latest', opt.save_dir)
 
 # Initialize a data loader from randomly shuffled corpus data; inspection limited to individual items, hence bs=1
-shuffled_loader = DataIterator(corpus_data, vocab, opt.max_sent_len, opt.test_batch_size, similarity_corpus=True)
+shuffled_loader = DataIterator(corpus_data, vocab, opt.max_sent_len, opt.test_batch_size, shuffle=opt.shuffle,
+                               freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
 
 # Keep track of performance
 total_classification_divergence = 0.0
 total_classification_loss = 0.0
-
 
 # Test loop
 for i, data in enumerate(shuffled_loader):
@@ -38,15 +43,14 @@ for i, data in enumerate(shuffled_loader):
         average_classification_loss = total_classification_loss / opt.num_test_samples
         print('=================================================\n'
               '= Testing concluded after examining %d samples. =\n'
-              '= Average classification divergence is %.4f.  =\n' 
+              '= Average classification divergence is %.4f.  =\n'
               '= Average classification loss (MSE) is %.4f.  =\n'
               '=================================================' %
               (opt.num_test_samples, average_classification_divergence, average_classification_loss))
         break
 
     sent_1, sent_2, label = data
-    s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1)), \
-                                Variable(torch.LongTensor(sent_2)), \
+    s1_var, s2_var, label_var = Variable(torch.LongTensor(sent_1)), Variable(torch.LongTensor(sent_2)), \
                                 Variable(torch.FloatTensor(label))
 
     # Get predictions and update tracking values

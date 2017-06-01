@@ -5,7 +5,7 @@ import pickle
 
 import numpy as np
 import torch
-from utils.data_loader import DataIterator
+from utils.data_iterator import DataIterator
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVR
@@ -15,28 +15,27 @@ from similarity_estimator.networks import SiameseClassifier
 from similarity_estimator.options import TestingOptions, ClusterOptions
 from similarity_estimator.sick_extender import SickExtender
 from similarity_estimator.sim_util import load_similarity_data
-from utils.init_and_storage import add_pretrained_embeddings, adapt_embeddings, update_learning_rate, save_network
+from utils.init_and_storage import add_pretrained_embeddings, extend_embeddings, update_learning_rate, save_network
 from utils.parameter_initialization import xavier_normal
 
 # Initialize training parameters
-opt = ClusterOptions()
+opt = TestingOptions()
 
-# noinspection PyUnboundLocalVariable
 if opt.pre_training:
     save_dir = opt.pretraining_dir
-    sts_corpus_path = os.path.join(opt.data_dir, 'SemEval13STS_data.txt')
+    sts_corpus_path = os.path.join(opt.data_dir, 'se100.txt')
     vocab, corpus_data = load_similarity_data(opt, sts_corpus_path, 'SemEval13STS_corpus')
     # Initialize an embedding table
     init_embeddings = xavier_normal(torch.randn([vocab.n_words, 300])).numpy()
-    # Add pretrained embeddings
-    vocab, mod_embeddings = add_pretrained_embeddings(
-        init_embeddings, vocab, os.path.join(opt.data_dir, 'pretrained_embeds.txt'))
+    # Add FastText embeddings
+    fasttext_embeddings = add_pretrained_embeddings(
+        init_embeddings, vocab, os.path.join(opt.data_dir, 'fasttext_embeds.txt'))
     # Initialize the similarity estimator network
     classifier = SiameseClassifier(vocab.n_words, opt, is_train=True)
     # Initialize parameters
     classifier.initialize_parameters()
     # Inject the pre-trained embedding table
-    classifier.encoder_a.embedding_table.weight.data.copy_(mod_embeddings)
+    classifier.encoder_a.embedding_table.weight.data.copy_(fasttext_embeddings)
 
 else:
     save_dir = opt.save_dir
@@ -48,17 +47,24 @@ else:
     if not os.path.exists(extended_corpus_path):
         extender.create_extension()
     # Obtain data
-    vocab, corpus_data = load_similarity_data(opt, extended_corpus_path, 'sick_corpus')
-
+    target_vocab, corpus_data = load_similarity_data(opt, extended_corpus_path, 'sick_corpus')
+    # Load pretrained parameters
+    pretrained_path = os.path.join(opt.save_dir, 'pretraining/pretrained.pkl')
+    with open(pretrained_path, 'rb') as f:
+        pretrained_embeddings, pretrained_vocab = pickle.load(f)
+    # Extend embeddings
+    vocab, extended_embeddings = extend_embeddings(
+        pretrained_embeddings, pretrained_vocab, target_vocab, os.path.join(opt.data_dir, 'fasttext_embeds.txt'))
+    # Save extended embeddings
+    vocab_path = os.path.join(opt.save_dir, 'extended_vocab.pkl')
+    with open(vocab_path, 'wb') as f:
+        pickle.dump(vocab, f)
     # Initialize the similarity estimator network
     classifier = SiameseClassifier(vocab.n_words, opt, is_train=True)
-    # Initialize parameters and get target embeddings
+    # Initialize parameters
     classifier.initialize_parameters()
-    # Adapt embeddings
-    target_embeddings = adapt_embeddings(opt, classifier, vocab)
     # Inject the pre-trained embedding table
-    classifier.encoder_a.embedding_table.weight.data.copy_(target_embeddings)
-
+    classifier.encoder_a.embedding_table.weight.data.copy_(extended_embeddings)
 
 # Set up training
 learning_rate = opt.learning_rate
@@ -80,7 +86,8 @@ for epoch in range(opt.num_epochs):
     total_train_loss = list()
 
     # Initiate the training data loader
-    train_loader = DataIterator([train_data, train_labels], vocab, None, opt.train_batch_size, similarity_corpus=True)
+    train_loader = DataIterator([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                                shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
 
     # Training loop
     for i, data in enumerate(train_loader):
@@ -111,7 +118,8 @@ for epoch in range(opt.num_epochs):
         total_valid_loss = list()
 
         # Initiate the training data loader
-        valid_loader = DataIterator([valid_data, valid_labels], vocab, None, opt.train_batch_size, similarity_corpus=True)
+        valid_loader = DataIterator([valid_data, valid_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                                    shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
 
         # Validation loop (i.e. perform inference on the validation set)
         for i, data in enumerate(valid_loader):
@@ -142,7 +150,7 @@ for epoch in range(opt.num_epochs):
         save_network(classifier.encoder_a, 'sim_classifier', epoch, save_dir)
 
     # Anneal learning rate:
-    if epochs_without_improvement == opt.annealing_threshold:
+    if epochs_without_improvement == opt.start_annealing:
         old_learning_rate = learning_rate
         learning_rate *= opt.annealing_factor
         update_learning_rate(classifier.optimizer_a, learning_rate)
@@ -158,7 +166,6 @@ for epoch in range(opt.num_epochs):
 print('Training procedure concluded after %d epochs total. Best validated epoch: %d.'
       % (final_epoch, final_epoch - opt.patience))
 
-
 if opt.pre_training:
     # Save pretrained embeddings and the vocab object
     pretrained_path = os.path.join(save_dir, 'pretrained.pkl')
@@ -167,7 +174,6 @@ if opt.pre_training:
         pickle.dump((pretrained_embeddings, vocab), f)
     print('Pre-trained parameters saved to %s' % pretrained_path)
 
-
 if not opt.pre_training:
     """ Regression step over the training set to improve the predictive power of the model """
     # Obtain similarity score predictions for each item within the training corpus
@@ -175,7 +181,8 @@ if not opt.pre_training:
     predictions = list()
 
     # Initiate the training data loader
-    train_loader = DataIterator([train_data, train_labels], vocab, None, opt.train_batch_size, similarity_corpus=True)
+    train_loader = DataIterator([train_data, train_labels], vocab, opt.max_sent_len, opt.train_batch_size,
+                                shuffle=opt.shuffle, freq_bound=opt.freq_bound, pad=opt.pad, similarity_corpus=True)
 
     # Obtaining predictions
     for i, data in enumerate(train_loader):

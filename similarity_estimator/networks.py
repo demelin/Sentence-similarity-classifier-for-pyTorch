@@ -2,7 +2,6 @@
 "Siamese Recurrent Architectures for Learning Sentence Similarity." """
 
 import os
-import copy
 
 import torch
 import torch.nn as nn
@@ -30,7 +29,7 @@ class LSTMEncoder(nn.Module):
 
         # Layers
         self.embedding_table = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.opt.embedding_dims,
-                                            padding_idx=2, max_norm=None, scale_grad_by_freq=False, sparse=False)
+                                            padding_idx=0, max_norm=None, scale_grad_by_freq=False, sparse=False)
         self.lstm_rnn = nn.LSTM(input_size=self.opt.embedding_dims, hidden_size=self.opt.hidden_dims, num_layers=1)
 
     def initialize_hidden_plus_cell(self):
@@ -39,12 +38,12 @@ class LSTMEncoder(nn.Module):
         zero_cell = Variable(torch.randn(1, self.batch_size, self.opt.hidden_dims))
         return zero_hidden, zero_cell
 
-    def forward(self, input_data, hidden_state, cell_state):
+    def forward(self, input_data, hidden, cell):
         """ Performs a forward pass through the network. """
         output = self.embedding_table(input_data).view(1, self.batch_size, -1)
         for _ in range(self.opt.num_layers):
-            output, (hidden_state, cell_state) = self.lstm_rnn(output, (hidden_state, cell_state))
-        return output, hidden_state, cell_state
+            output, (hidden, cell) = self.lstm_rnn(output, (hidden, cell))
+        return output, hidden, cell
 
 
 class SiameseClassifier(nn.Module):
@@ -54,7 +53,7 @@ class SiameseClassifier(nn.Module):
         super(SiameseClassifier, self).__init__()
         self.opt = opt
         # Initialize constituent network
-        self.encoder_a = LSTMEncoder(vocab_size, self.opt, is_train)
+        self.encoder_a = self.encoder_b = LSTMEncoder(vocab_size, self.opt, is_train)
         # Initialize pretrained embeddings, if given
         if pretrained_embeddings is not None:
             self.encoder_a.embedding_table.weight.data.copy_(pretrained_embeddings)
@@ -70,8 +69,8 @@ class SiameseClassifier(nn.Module):
 
     def forward(self):
         """ Performs a single forward pass through the siamese architecture. """
-        # Clone the encoder
-        self.encoder_b = copy.deepcopy(self.encoder_a)
+        # Checkpoint the encoder state
+        state_dict = self.encoder_a.state_dict()
 
         # Obtain the input length (each batch consists of padded sentences)
         input_length = self.batch_a.size()[1]
@@ -81,6 +80,8 @@ class SiameseClassifier(nn.Module):
         for t_i in range(input_length):
             output_a, hidden_a, cell_a = self.encoder_a(self.batch_a[:, t_i], hidden_a, cell_a)
 
+        # Restore checkpoint to establish weight-sharing
+        self.encoder_b.load_state_dict(state_dict)
         hidden_b, cell_b = self.encoder_b.initialize_hidden_plus_cell()
         for t_j in range(input_length):
             output_b, hidden_b, cell_b = self.encoder_b(self.batch_b[:, t_j], hidden_b, cell_b)

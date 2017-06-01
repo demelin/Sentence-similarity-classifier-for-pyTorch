@@ -3,9 +3,13 @@ import os
 
 class TestingOptions(object):
     """ Default options for the siamese similarity estimator network. Use for quick evaluation on home machine. """
+
     def __init__(self):
         # Data
         self.max_sent_len = None
+        self.pad = True
+        self.freq_bound = 3
+        self.shuffle = True
         self.sent_select = 'truncate'
         self.lower = False
 
@@ -19,12 +23,12 @@ class TestingOptions(object):
         self.learning_rate = 0.0001
         self.beta_1 = 0.5
 
-        self.pre_training = False
+        self.pre_training = True
         self.num_epochs = 1000
 
         self.start_early_stopping = 2
         self.patience = 10
-        self.annealing_threshold = 4
+        self.start_annealing = 4
         self.annealing_factor = 0.75
 
         # Training
@@ -41,9 +45,13 @@ class TestingOptions(object):
 
 class ClusterOptions(object):
     """ Default options for the siamese similarity estimator network. Use for deployment on cluster. """
+
     def __init__(self):
         # Data
         self.max_sent_len = None
+        self.pad = True
+        self.freq_bound = 3
+        self.shuffle = True
         self.sent_select = 'truncate'
         self.lower = False
 
@@ -64,7 +72,7 @@ class ClusterOptions(object):
         # Mostly arbitrary values from here on; for a more informed approach, consult Early Stopping paper
         self.start_early_stopping = self.num_epochs // 20
         self.patience = self.num_epochs // 50
-        self.annealing_threshold = self.num_epochs // 100
+        self.start_annealing = self.num_epochs // 100
         self.annealing_factor = 0.75
 
         self.report_freq = 100
