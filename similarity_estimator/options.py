@@ -12,6 +12,7 @@ class TestingOptions(object):
         self.shuffle = True
         self.sent_select = 'truncate'
         self.lower = False
+        self.num_buckets = 3
 
         # Network
         self.embedding_dims = 300
@@ -23,8 +24,8 @@ class TestingOptions(object):
         self.learning_rate = 0.0001
         self.beta_1 = 0.5
 
-        self.pre_training = False
-        self.num_epochs = 1000
+        self.pre_training = True
+        self.num_epochs = 100
 
         self.start_early_stopping = 2
         self.patience = 10
@@ -54,6 +55,7 @@ class ClusterOptions(object):
         self.shuffle = True
         self.sent_select = 'truncate'
         self.lower = False
+        self.num_buckets = 8
 
         # Network
         self.embedding_dims = 300

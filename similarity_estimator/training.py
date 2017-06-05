@@ -1,4 +1,4 @@
-""" Pre-trains the similarity estimator network on the SICK corpus. """
+""" Pre-trains the similarity estimator network the SemEval corpus and fine-tunes it on the SICK corpus. """
 
 import os
 import pickle
@@ -9,7 +9,6 @@ from utils.data_server import DataServer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVR
-from torch.autograd import Variable
 
 from similarity_estimator.networks import SiameseClassifier
 from similarity_estimator.options import TestingOptions, ClusterOptions
@@ -80,13 +79,12 @@ train_data, valid_data, train_labels, valid_labels = train_test_split(corpus_dat
 
 # Training loop
 for epoch in range(opt.num_epochs):
-
     # Declare tracking variables
     running_loss = list()
     total_train_loss = list()
 
     # Initiate the training data loader
-    train_loader = DataServer([train_data, train_labels], vocab, opt, is_train=True, volatile=False)
+    train_loader = DataServer([train_data, train_labels], vocab, opt, is_train=True, use_buckets=True, volatile=False)
 
     # Training loop
     for i, data in enumerate(train_loader):
@@ -113,7 +111,8 @@ for epoch in range(opt.num_epochs):
         total_valid_loss = list()
 
         # Initiate the training data loader
-        valid_loader = DataServer([valid_data, valid_labels], vocab, opt, is_train=True, volatile=True)
+        valid_loader = DataServer([valid_data, valid_labels], vocab, opt, is_train=True, use_buckets=False,
+                                  volatile=True)
 
         # Validation loop (i.e. perform inference on the validation set)
         for i, data in enumerate(valid_loader):
@@ -165,7 +164,7 @@ if opt.pre_training:
     print('Pre-trained parameters saved to %s' % pretrained_path)
 
 if not opt.pre_training:
-    """ Regression step over the training set to improve the predictive power of the model """
+    ''' Regression step over the training set to improve the predictive power of the model'''
     # Obtain similarity score predictions for each item within the training corpus
     labels = list()
     predictions = list()

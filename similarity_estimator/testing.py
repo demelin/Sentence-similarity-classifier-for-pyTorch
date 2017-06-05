@@ -3,13 +3,10 @@
 import os
 import pickle
 
-import torch
-from utils.data_server import DataServer
-from torch.autograd import Variable
-
 from similarity_estimator.networks import SiameseClassifier
 from similarity_estimator.options import TestingOptions, ClusterOptions
 from similarity_estimator.sim_util import load_similarity_data
+from utils.data_server import DataServer
 from utils.init_and_storage import load_network
 
 # Initialize training parameters
@@ -28,7 +25,7 @@ classifier = SiameseClassifier(vocab.n_words, opt, is_train=False)
 load_network(classifier.encoder_a, 'sim_classifier', 'latest', opt.save_dir)
 
 # Initialize a data loader from randomly shuffled corpus data; inspection limited to individual items, hence bs=1
-shuffled_loader = DataServer(corpus_data, vocab, opt, is_train=False, volatile=True)
+shuffled_loader = DataServer(corpus_data, vocab, opt, is_train=False, use_buckets=False, volatile=True)
 
 # Keep track of performance
 total_classification_divergence = 0.0
@@ -57,8 +54,10 @@ for i, data in enumerate(shuffled_loader):
     total_classification_divergence += divergence
     total_classification_loss += loss
 
-    sentence_a = ' '.join([vocab.index_to_word[int(idx)] for idx in s1_var.data.numpy().tolist()[0]])
-    sentence_b = ' '.join([vocab.index_to_word[int(idx)] for idx in s2_var.data.numpy().tolist()[0]])
+    sentence_a = ' '.join([vocab.index_to_word[int(idx[0])] if idx[0] != 0 else '' for idx in
+                           s1_var.data.numpy().tolist()])
+    sentence_b = ' '.join([vocab.index_to_word[int(idx[0])] if idx[0] != 0 else '' for idx in
+                           s2_var.data.numpy().tolist()])
 
     print('Sample: %d\n'
           'Sentence A: %s\n'

@@ -22,25 +22,21 @@ class LSTMEncoder(nn.Module):
         self.vocab_size = vocab_size
         self.opt = opt
         self.name = 'sim_encoder'
-        if is_train:
-            self.batch_size = self.opt.train_batch_size
-        else:
-            self.batch_size = self.opt.test_batch_size
 
         # Layers
         self.embedding_table = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.opt.embedding_dims,
                                             padding_idx=0, max_norm=None, scale_grad_by_freq=False, sparse=False)
         self.lstm_rnn = nn.LSTM(input_size=self.opt.embedding_dims, hidden_size=self.opt.hidden_dims, num_layers=1)
 
-    def initialize_hidden_plus_cell(self):
+    def initialize_hidden_plus_cell(self, batch_size):
         """ Re-initializes the hidden state, cell state, and the forget gate bias of the network. """
-        zero_hidden = Variable(torch.randn(1, self.batch_size, self.opt.hidden_dims))
-        zero_cell = Variable(torch.randn(1, self.batch_size, self.opt.hidden_dims))
+        zero_hidden = Variable(torch.randn(1, batch_size, self.opt.hidden_dims))
+        zero_cell = Variable(torch.randn(1, batch_size, self.opt.hidden_dims))
         return zero_hidden, zero_cell
 
-    def forward(self, input_data, hidden, cell):
+    def forward(self, batch_size, input_data, hidden, cell):
         """ Performs a forward pass through the network. """
-        output = self.embedding_table(input_data).view(1, self.batch_size, -1)
+        output = self.embedding_table(input_data).view(1, batch_size, -1)
         for _ in range(self.opt.num_layers):
             output, (hidden, cell) = self.lstm_rnn(output, (hidden, cell))
         return output, hidden, cell
@@ -54,7 +50,7 @@ class SiameseClassifier(nn.Module):
         self.opt = opt
         # Initialize constituent network
         self.encoder_a = self.encoder_b = LSTMEncoder(vocab_size, self.opt, is_train)
-        # Initialize pretrained embeddings, if given
+        # Initialize pre-trained embeddings, if given
         if pretrained_embeddings is not None:
             self.encoder_a.embedding_table.weight.data.copy_(pretrained_embeddings)
         # Initialize network parameters
@@ -73,25 +69,25 @@ class SiameseClassifier(nn.Module):
         state_dict = self.encoder_a.state_dict()
 
         # Obtain the input length (each batch consists of padded sentences)
-        input_length = self.batch_a.size()[1]
+        input_length = self.batch_a.size(0)
 
         # Obtain sentence encodings from each encoder
-        hidden_a, cell_a = self.encoder_a.initialize_hidden_plus_cell()
+        hidden_a, cell_a = self.encoder_a.initialize_hidden_plus_cell(self.batch_size)
         for t_i in range(input_length):
-            output_a, hidden_a, cell_a = self.encoder_a(self.batch_a[:, t_i], hidden_a, cell_a)
+            output_a, hidden_a, cell_a = self.encoder_a(self.batch_size, self.batch_a[t_i, :], hidden_a, cell_a)
 
         # Restore checkpoint to establish weight-sharing
         self.encoder_b.load_state_dict(state_dict)
-        hidden_b, cell_b = self.encoder_b.initialize_hidden_plus_cell()
+        hidden_b, cell_b = self.encoder_b.initialize_hidden_plus_cell(self.batch_size)
         for t_j in range(input_length):
-            output_b, hidden_b, cell_b = self.encoder_b(self.batch_b[:, t_j], hidden_b, cell_b)
+            output_b, hidden_b, cell_b = self.encoder_b(self.batch_size, self.batch_b[t_j, :], hidden_b, cell_b)
 
         # Format sentence encodings as 2D tensors
         self.encoding_a = hidden_a.squeeze()
         self.encoding_b = hidden_b.squeeze()
 
         # Obtain similarity score predictions by calculating the Manhattan distance between sentence encodings
-        if self.encoder_a.batch_size == 1:
+        if self.batch_size == 1:
             self.prediction = torch.exp(-torch.norm((self.encoding_a - self.encoding_b), 1))
         else:
             self.prediction = torch.exp(-torch.norm((self.encoding_a - self.encoding_b), 1, 1))
@@ -121,9 +117,13 @@ class SiameseClassifier(nn.Module):
 
     def train_step(self, train_batch_a, train_batch_b, train_labels):
         """ Optimizes the parameters of the active networks, i.e. performs a single training step. """
+        # Get batches
         self.batch_a = train_batch_a
         self.batch_b = train_batch_b
         self.labels = train_labels
+
+        # Get batch_size for current batch
+        self.batch_size = self.batch_a.size(1)
 
         # Get gradients
         self.forward()
@@ -139,9 +139,13 @@ class SiameseClassifier(nn.Module):
 
     def test_step(self, test_batch_a, test_batch_b, test_labels):
         """ Performs a single test step. """
+        # Get batches
         self.batch_a = test_batch_a
         self.batch_b = test_batch_b
         self.labels = test_labels
+
+        # Get batch_size for current batch
+        self.batch_size = self.batch_a.size(1)
 
         svr_path = os.path.join(self.opt.save_dir, 'sim_svr.pkl')
         if os.path.exists(svr_path):
@@ -155,4 +159,3 @@ class SiameseClassifier(nn.Module):
             self.forward()
 
         self.get_loss()
-
