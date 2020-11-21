@@ -1,7 +1,7 @@
 # Siamese Sentence Similarity Classifier for pyTorch
 
 ## Overview
-This repository contains a re-implementation of Mueller's et al., ["Siamese Recurrent Architectures for Learning Sentence Similarity."](https://www.aaai.org/ocs/index.php/AAAI/AAAI16/paper/viewFile/12195/12023) (AAAI, 2019). For the technical details, please refer to the publication.
+This repository contains a re-implementation of Mueller's et al., ["Siamese Recurrent Architectures for Learning Sentence Similarity."](https://www.aaai.org/ocs/index.php/AAAI/AAAI16/paper/viewFile/12195/12023) (AAAI, 2016). For the technical details, please refer to the publication.
 
 ## Training
 To train the classifier, execute `similarity_estimator/training.py` after modifying the hard-coded values (such as the training corpus filename) to your own specifications.
